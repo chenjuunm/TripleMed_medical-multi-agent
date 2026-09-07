@@ -4,8 +4,7 @@ set -euo pipefail
 LMS_EXECUTABLE="${LMS_EXECUTABLE:-${HOME}/.lmstudio/bin/lms}"
 LM_STUDIO_PORT="${LM_STUDIO_PORT:-1234}"
 
-# 9B 模型统一强制使用 4bit，避免依赖 LM Studio 当前选中的 variant。
-# 27B 主模型仍允许在 Q6_K 与 Q4_K_M 之间按机器内存切换。
+# 模型 key 按配置原样传给 LM Studio，不强制量化版本。
 MAIN_MODEL_KEY="${LM_STUDIO_MAIN_MODEL_KEY:-qwen/qwen3.8-27b}"
 ROUTER_MODEL_KEY="${LM_STUDIO_ROUTER_MODEL_KEY:-qwen/qwen3.5-9b}"
 
@@ -35,14 +34,6 @@ loaded_instance_for() {
 }
 
 MAIN_INSTANCE="$(loaded_instance_for "${MAIN_IDENTIFIER}")"
-if [[ -n "${MAIN_INSTANCE}" ]] \
-    && is_9b_model_key "${MAIN_MODEL_KEY}" \
-    && [[ "${MAIN_INSTANCE}" != *"\"selectedVariant\":\"${MAIN_MODEL_KEY}\""* ]]; then
-    echo "主模型是 9B 但未使用 4bit，正在重载: ${MAIN_IDENTIFIER}"
-    "${LMS_EXECUTABLE}" unload "${MAIN_IDENTIFIER}"
-    MAIN_INSTANCE=""
-fi
-
 if [[ -n "${MAIN_INSTANCE}" ]]; then
     echo "主模型已加载，跳过重复加载: ${MAIN_IDENTIFIER}"
 else
@@ -56,14 +47,6 @@ else
 fi
 
 ROUTER_INSTANCE="$(loaded_instance_for "${ROUTER_IDENTIFIER}")"
-if [[ -n "${ROUTER_INSTANCE}" ]] \
-    && is_9b_model_key "${ROUTER_MODEL_KEY}" \
-    && [[ "${ROUTER_INSTANCE}" != *"\"selectedVariant\":\"${ROUTER_MODEL_KEY}\""* ]]; then
-    echo "Router 是 9B 但未使用 4bit，正在重载: ${ROUTER_IDENTIFIER}"
-    "${LMS_EXECUTABLE}" unload "${ROUTER_IDENTIFIER}"
-    ROUTER_INSTANCE=""
-fi
-
 if [[ -n "${ROUTER_INSTANCE}" ]]; then
     echo "Router 已加载，跳过重复加载: ${ROUTER_IDENTIFIER}"
 else
