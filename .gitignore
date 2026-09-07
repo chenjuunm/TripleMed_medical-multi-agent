@@ -1,0 +1,47 @@
+# Local configuration and credentials
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# Environments, editors, caches and generated output
+.venv/
+.venv-*/
+.idea/
+.vscode/
+.agents/
+.codex/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.coverage
+htmlcov/
+.DS_Store
+tmp/
+validation_outputs/
+dist/
+build/
+*.egg-info/
+*.log
+
+# Local databases and runtime records
+chroma_db/
+answer_knowledge_db/
+*.db
+*.sqlite*
+*.db-*
+
+# Publish only the project README as Markdown documentation
+*.[mM][dD]
+!README.md
+
+# Personal documents and export artifacts
+*.pdf
+*.docx
+*.doc
+*.xlsx
+*.zip
+*RESUME*
+*resume*
+*简历*

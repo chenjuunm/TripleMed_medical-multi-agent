@@ -1,0 +1,927 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI 临床决策支持系统</title>
+    <style>
+        :root {
+            --bg-color: #f7f8fa;
+            --sidebar-bg: #ffffff;
+            --chat-bg: #ffffff;
+            --user-bubble: #e6f4ff;
+            --ai-bubble: #ffffff;
+            --primary-color: #1677ff;
+            --text-main: #1f2937;
+            --text-secondary: #6b7280;
+            --border-color: #e5e7eb;
+            --danger-color: #ef4444;
+            --success-color: #10b981;
+            --warning-bg: #fffbeb;
+            --warning-border: #fde68a;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-main);
+            height: 100vh;
+            display: flex;
+            overflow: hidden;
+        }
+
+        /* 左侧边栏 (模拟千问布局) */
+        .sidebar {
+            width: 260px;
+            flex-shrink: 0;
+            background: var(--sidebar-bg);
+            border-right: 1px solid var(--border-color);
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .logo {
+            font-size: 20px;
+            font-weight: 600;
+            color: var(--primary-color);
+            margin-bottom: 30px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .new-chat-btn {
+            background: var(--primary-color);
+            color: white;
+            border: none;
+            padding: 12px;
+            border-radius: 8px;
+            font-size: 14px;
+            cursor: pointer;
+            transition: opacity 0.2s;
+            margin-bottom: 20px;
+        }
+        .new-chat-btn:hover { opacity: 0.9; }
+
+        /* 主聊天区域 */
+        .main-container {
+            flex: 1;
+            min-width: 0;
+            display: flex;
+            flex-direction: column;
+            height: 100%;
+            width: 100%;
+        }
+
+        .chat-header {
+            padding: 16px 24px;
+            border-bottom: 1px solid var(--border-color);
+            background: rgba(255,255,255,0.8);
+            backdrop-filter: blur(10px);
+            font-weight: 500;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .patient-info {
+            font-size: 13px;
+            color: var(--text-secondary);
+            background: #f3f4f6;
+            padding: 4px 12px;
+            border-radius: 12px;
+        }
+
+        /* 消息列表区 */
+        .chat-messages {
+            flex: 1;
+            overflow-y: auto;
+            padding: 24px;
+            scroll-behavior: smooth;
+        }
+
+        .message-row {
+            display: flex;
+            margin-bottom: 24px;
+            gap: 16px;
+            animation: fadeIn 0.3s ease-out;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .message-row.user { justify-content: flex-end; }
+        .message-row.ai { justify-content: flex-start; }
+
+        .avatar {
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            flex-shrink: 0;
+            font-size: 14px;
+        }
+        .avatar.user { background: #e0e7ff; color: #4338ca; }
+        .avatar.ai { background: linear-gradient(135deg, #6366f1, #8b5cf6); color: white; }
+
+        .bubble {
+            max-width: 80%;
+            padding: 12px 16px;
+            border-radius: 12px;
+            line-height: 1.6;
+            font-size: 15px;
+            box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+        }
+
+        .bubble.user {
+            background: var(--user-bubble);
+            border-top-right-radius: 2px;
+        }
+
+        .bubble.ai {
+            background: var(--ai-bubble);
+            border: 1px solid var(--border-color);
+            border-top-left-radius: 2px;
+        }
+
+        /* Markdown 样式 */
+        .bubble.ai p { margin-bottom: 8px; }
+        .bubble.ai p:last-child { margin-bottom: 0; }
+        .bubble.ai ul, .bubble.ai ol { padding-left: 20px; margin-bottom: 8px; }
+        .bubble.ai strong { color: var(--primary-color); }
+        .bubble.ai code { background: #f3f4f6; padding: 2px 4px; border-radius: 4px; font-family: monospace; }
+        .bubble.ai h2 { font-size: 20px; margin: 4px 0 12px; }
+        .bubble.ai h3 { font-size: 17px; margin: 16px 0 8px; }
+        .bubble.ai blockquote {
+            border-left: 3px solid var(--primary-color);
+            padding-left: 12px;
+            color: var(--text-secondary);
+            margin-bottom: 10px;
+        }
+
+        .node-tag {
+            font-size: 12px;
+            color: var(--text-secondary);
+            background: #f3f4f6;
+            padding: 2px 8px;
+            border-radius: 4px;
+            margin-bottom: 6px;
+            display: inline-block;
+        }
+
+        .status-list { display: flex; flex-direction: column; gap: 6px; }
+        .status-item { color: var(--text-secondary); font-size: 13px; }
+        .status-item::before { content: "✓"; color: var(--success-color); margin-right: 6px; }
+
+        /* 思考/加载动画 */
+        .typing-indicator {
+            display: flex;
+            gap: 4px;
+            padding: 8px 0;
+        }
+        .typing-indicator span {
+            width: 8px; height: 8px; background: #9ca3af; border-radius: 50%;
+            animation: bounce 1.4s infinite ease-in-out both;
+        }
+        .typing-indicator span:nth-child(1) { animation-delay: -0.32s; }
+        .typing-indicator span:nth-child(2) { animation-delay: -0.16s; }
+        @keyframes bounce {
+            0%, 80%, 100% { transform: scale(0); }
+            40% { transform: scale(1); }
+        }
+
+        /* 人工确认卡片 (Interrupt UI) */
+        .interrupt-card {
+            background: var(--warning-bg);
+            border: 1px solid var(--warning-border);
+            border-radius: 12px;
+            padding: 16px;
+            width: 100%;
+            max-width: 500px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+        }
+        .interrupt-header {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-weight: 600;
+            color: #b45309;
+            margin-bottom: 12px;
+        }
+        .interrupt-body {
+            background: white;
+            padding: 12px;
+            border-radius: 8px;
+            font-size: 14px;
+            margin-bottom: 16px;
+            border: 1px solid #fde68a;
+        }
+        .interrupt-body code {
+            display: block;
+            background: #f9fafb;
+            padding: 8px;
+            margin-top: 8px;
+            border-radius: 4px;
+            font-family: monospace;
+            color: #374151;
+            white-space: pre-wrap;
+        }
+        .interrupt-actions {
+            display: flex;
+            gap: 12px;
+            align-items: center;
+        }
+        .btn {
+            padding: 8px 16px;
+            border-radius: 6px;
+            border: none;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+            transition: all 0.2s;
+        }
+        .btn-approve { background: var(--success-color); color: white; }
+        .btn-approve:hover { background: #059669; }
+        .btn-reject { background: white; color: var(--danger-color); border: 1px solid var(--danger-color); }
+        .btn-reject:hover { background: #fef2f2; }
+        .reject-input {
+            flex: 1;
+            padding: 8px 12px;
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            font-size: 14px;
+            display: none;
+        }
+
+        /* 底部输入区 */
+        .input-area {
+            padding: 16px 24px 24px;
+            background: var(--chat-bg);
+            border-top: 1px solid var(--border-color);
+        }
+        .context-details { margin-bottom: 12px; }
+        .context-details summary {
+            cursor: pointer;
+            color: var(--text-secondary);
+            font-size: 13px;
+            margin-bottom: 8px;
+        }
+        .context-details textarea {
+            width: 100%;
+            min-height: 88px;
+            resize: vertical;
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 10px;
+            font: 13px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace;
+            color: var(--text-main);
+            outline: none;
+        }
+        .context-details textarea:focus { border-color: var(--primary-color); }
+        .input-wrapper {
+            display: flex;
+            align-items: flex-end;
+            background: #f9fafb;
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 8px 12px;
+            transition: border-color 0.2s;
+        }
+        .input-wrapper:focus-within { border-color: var(--primary-color); }
+
+        .input-wrapper input {
+            flex: 1;
+            border: none;
+            background: transparent;
+            padding: 8px;
+            font-size: 15px;
+            outline: none;
+            color: var(--text-main);
+        }
+        .send-btn {
+            background: var(--primary-color);
+            color: white;
+            border: none;
+            width: 36px;
+            height: 36px;
+            border-radius: 8px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: opacity 0.2s;
+        }
+        .send-btn:disabled { background: #d1d5db; cursor: not-allowed; }
+
+        /* 初始欢迎屏 */
+        .welcome-screen {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            color: var(--text-secondary);
+            padding: 40px;
+            text-align: center;
+        }
+        .welcome-screen h2 { color: var(--text-main); margin-bottom: 16px; }
+        .welcome-cards { display: flex; gap: 16px; margin-top: 24px; flex-wrap: wrap; justify-content: center; }
+        .welcome-card {
+            background: white;
+            border: 1px solid var(--border-color);
+            padding: 16px;
+            border-radius: 12px;
+            width: 200px;
+            cursor: pointer;
+            transition: all 0.2s;
+            text-align: left;
+        }
+        .welcome-card:hover { border-color: var(--primary-color); box-shadow: 0 4px 12px rgba(0,0,0,0.05); }
+        .welcome-card h4 { font-size: 14px; margin-bottom: 8px; color: var(--text-main); }
+        .welcome-card p { font-size: 12px; }
+
+        /* 隐藏滚动条但保留功能 */
+        .chat-messages::-webkit-scrollbar { width: 6px; }
+        .chat-messages::-webkit-scrollbar-thumb { background: #d1d5db; border-radius: 3px; }
+
+        @media (max-width: 760px) {
+            body { flex-direction: column; }
+            .sidebar {
+                width: 100%;
+                padding: 10px 14px;
+                flex-direction: row;
+                align-items: center;
+                border-right: 0;
+                border-bottom: 1px solid var(--border-color);
+            }
+            .logo { margin: 0; font-size: 16px; }
+            .new-chat-btn { margin: 0 0 0 auto; padding: 9px 12px; }
+            .sidebar-spacer, .sidebar-footer { display: none; }
+            .main-container { min-height: 0; }
+            .chat-header { padding: 12px 16px; }
+            .chat-messages { padding: 16px 12px; }
+            .welcome-screen { padding: 20px 8px; justify-content: flex-start; }
+            .welcome-cards { display: grid; grid-template-columns: 1fr; width: 100%; }
+            .welcome-card { width: 100%; }
+            .bubble { max-width: calc(100% - 44px); font-size: 14px; }
+            .message-row { gap: 8px; }
+            .input-area { padding: 12px; }
+        }
+        .answer-feedback { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 14px; padding-top: 10px; border-top: 1px solid #e5e7eb; }
+        .answer-feedback button { border: 1px solid #d1d5db; border-radius: 6px; background: white; padding: 6px 10px; cursor: pointer; }
+        .answer-feedback button[aria-pressed="true"] { background: #eff6ff; border-color: #3b82f6; }
+        .answer-feedback button:disabled { opacity: .6; cursor: wait; }
+        .feedback-status { flex-basis: 100%; font-size: 12px; color: #64748b; }
+    </style>
+</head>
+<body>
+
+    <!-- 侧边栏 -->
+    <aside class="sidebar">
+        <div class="logo">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
+            MedAI 决策支持
+        </div>
+        <button class="new-chat-btn" onclick="resetChat()">+ 新建问诊</button>
+        <div class="sidebar-spacer" style="flex:1"></div>
+        <div class="sidebar-footer" style="font-size:12px; color:var(--text-secondary); text-align:center;">
+            仅供临床决策支持，不能替代医生判断<br>
+            Powered by LangGraph & LM Studio
+        </div>
+    </aside>
+
+    <!-- 主内容区 -->
+    <main class="main-container">
+        <header class="chat-header">
+            <span>多智能体临床决策支持</span>
+            <span class="patient-info" id="header-patient-info" style="display:none;"></span>
+        </header>
+
+        <!-- 消息列表 -->
+        <div class="chat-messages" id="chat-messages">
+            <!-- 欢迎屏 -->
+            <div class="welcome-screen" id="welcome-screen">
+                <h2>您好，我是 AI 临床决策支持助手</h2>
+                <p>面向医疗专业人员：请输入一次就诊的患者 ID 和主诉，系统将进行安全分流、并行取证、鉴别诊断与独立审校。</p>
+                <div class="welcome-cards">
+                    <div class="welcome-card" onclick="useExample('P001', '突发剧烈胸痛2小时，伴大汗')">
+                        <h4>🫀 急性胸痛</h4>
+                        <p>患者 P001，突发剧烈胸痛2小时，伴大汗淋漓。</p>
+                    </div>
+                    <div class="welcome-card" onclick="useExample('P002', '头晕、血压 190/110mmHg')">
+                        <h4>🩸 高血压危象</h4>
+                        <p>患者 P002，头晕头痛，测血压 190/110mmHg。</p>
+                    </div>
+                    <div class="welcome-card" onclick="useExample('P003', '多饮多尿，空腹血糖 12mmol/L')">
+                        <h4>💉 糖尿病初诊</h4>
+                        <p>患者 P003，多饮多尿，查空腹血糖 12mmol/L。</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 底部输入区 -->
+        <div class="input-area">
+            <div style="display:flex; gap:12px; margin-bottom:12px;">
+                <input type="text" id="patient-id" placeholder="患者 ID (如 P001)" value="P001" style="flex:1; padding:10px; border:1px solid var(--border-color); border-radius:8px; outline:none;">
+            </div>
+            <details class="context-details">
+                <summary>补充结构化临床信息（可选 JSON）</summary>
+                <textarea id="clinical-context" spellcheck="false" placeholder='例如：{"demographics":{"age":58,"sex":"男"},"vital_signs":{"blood_pressure":"150/90"},"medications":["氨氯地平"]}'></textarea>
+            </details>
+            <div class="input-wrapper">
+                <input type="text" id="chief-complaint" placeholder="请输入患者主诉或临床问题..." onkeydown="if(event.key==='Enter') sendMessage()">
+                <button class="send-btn" id="send-btn" onclick="sendMessage()">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+                </button>
+            </div>
+        </div>
+    </main>
+
+    <script>
+        const chatMessages = document.getElementById('chat-messages');
+        const welcomeScreen = document.getElementById('welcome-screen');
+        const sendBtn = document.getElementById('send-btn');
+        const headerPatientInfo = document.getElementById('header-patient-info');
+
+        let currentController = null;
+        let isGenerating = false;
+        let awaitingConfirmation = false;
+        let activeCaseId = null;
+        let activePatientId = '';
+
+        function createCaseId() {
+            if (window.crypto && typeof window.crypto.randomUUID === 'function') {
+                return window.crypto.randomUUID();
+            }
+            return `case-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+        }
+
+        function appendInlineMarkdown(parent, text) {
+            const pattern = /(\*\*[^*]+\*\*|`[^`]+`)/g;
+            let cursor = 0;
+            for (const match of text.matchAll(pattern)) {
+                if (match.index > cursor) {
+                    parent.appendChild(document.createTextNode(text.slice(cursor, match.index)));
+                }
+                const token = match[0];
+                const element = document.createElement(token.startsWith('**') ? 'strong' : 'code');
+                element.textContent = token.startsWith('**') ? token.slice(2, -2) : token.slice(1, -1);
+                parent.appendChild(element);
+                cursor = match.index + token.length;
+            }
+            if (cursor < text.length) {
+                parent.appendChild(document.createTextNode(text.slice(cursor)));
+            }
+        }
+
+        function renderSafeMarkdown(container, markdown) {
+            container.replaceChildren();
+            let currentList = null;
+            for (const rawLine of String(markdown || '').split(/\r?\n/)) {
+                const line = rawLine.trimEnd();
+                if (!line.trim()) {
+                    currentList = null;
+                    continue;
+                }
+
+                let element;
+                let content = line;
+                if (line.startsWith('### ')) {
+                    element = document.createElement('h3');
+                    content = line.slice(4);
+                    currentList = null;
+                } else if (line.startsWith('## ')) {
+                    element = document.createElement('h2');
+                    content = line.slice(3);
+                    currentList = null;
+                } else if (line.startsWith('> ')) {
+                    element = document.createElement('blockquote');
+                    content = line.slice(2);
+                    currentList = null;
+                } else if (line.startsWith('- ')) {
+                    if (!currentList) {
+                        currentList = document.createElement('ul');
+                        container.appendChild(currentList);
+                    }
+                    element = document.createElement('li');
+                    content = line.slice(2);
+                    appendInlineMarkdown(element, content);
+                    currentList.appendChild(element);
+                    continue;
+                } else {
+                    element = document.createElement('p');
+                    currentList = null;
+                }
+                appendInlineMarkdown(element, content);
+                container.appendChild(element);
+            }
+        }
+
+        function addAnswerFeedback(row, context) {
+            if (!context || row.querySelector('.answer-feedback')) return;
+            const controls = document.createElement('div');
+            controls.className = 'answer-feedback';
+            const status = document.createElement('span');
+            status.className = 'feedback-status';
+            status.setAttribute('role', 'status');
+            status.textContent = '点赞收录完整诊疗方案；检索过滤原患者身份，高度相似主诉可直接引用，仍需本次医生审批。';
+            for (const [vote, label] of [['up', '👍 有帮助，收录诊疗方案'], ['down', '👎 不合适']]) {
+                const button = document.createElement('button');
+                button.type = 'button';
+                button.textContent = label;
+                button.dataset.vote = vote;
+                button.setAttribute('aria-pressed', 'false');
+                button.onclick = async () => {
+                    const buttons = controls.querySelectorAll('button');
+                    buttons.forEach(item => item.disabled = true);
+                    status.textContent = '正在保存反馈…';
+                    try {
+                        const response = await fetch('/answer_feedback', {
+                            method: 'POST', headers: {'Content-Type': 'application/json'},
+                            body: JSON.stringify({...context, vote})
+                        });
+                        const result = await response.json();
+                        if (!response.ok) throw new Error(result.detail || '反馈保存失败');
+                        buttons.forEach(item => item.setAttribute('aria-pressed', String(item.dataset.vote === vote)));
+                        status.textContent = result.message;
+                    } catch (error) {
+                        status.textContent = `未保存：${error.message}`;
+                    } finally {
+                        buttons.forEach(item => item.disabled = false);
+                    }
+                };
+                controls.appendChild(button);
+            }
+            controls.appendChild(status);
+            row.querySelector('.bubble').appendChild(controls);
+        }
+
+        function addTypingIndicator(container) {
+            const indicator = document.createElement('div');
+            indicator.className = 'typing-indicator';
+            indicator.append(document.createElement('span'), document.createElement('span'), document.createElement('span'));
+            container.appendChild(indicator);
+        }
+
+        function useExample(pid, complaint) {
+            document.getElementById('patient-id').value = pid;
+            document.getElementById('chief-complaint').value = complaint;
+            sendMessage();
+        }
+
+        function resetChat() {
+            if (currentController) currentController.abort();
+            chatMessages.replaceChildren(welcomeScreen);
+            welcomeScreen.style.display = 'flex';
+            headerPatientInfo.style.display = 'none';
+            document.getElementById('chief-complaint').value = '';
+            document.getElementById('clinical-context').value = '';
+            activeCaseId = null;
+            activePatientId = '';
+            awaitingConfirmation = false;
+            isGenerating = false;
+            sendBtn.disabled = false;
+        }
+
+        function addMessage(role, content = '', node = '', loading = false) {
+            if (welcomeScreen.style.display !== 'none') welcomeScreen.style.display = 'none';
+
+            const row = document.createElement('div');
+            row.className = `message-row ${role}`;
+            const avatar = document.createElement('div');
+            avatar.className = `avatar ${role}`;
+            avatar.textContent = role === 'ai' ? 'AI' : '医';
+            const bubble = document.createElement('div');
+            bubble.className = `bubble ${role}`;
+
+            if (role === 'ai') {
+                row.append(avatar, bubble);
+                if (node) {
+                    const nodeTag = document.createElement('div');
+                    nodeTag.className = 'node-tag';
+                    nodeTag.textContent = `📍 ${node}`;
+                    bubble.appendChild(nodeTag);
+                }
+                const contentDiv = document.createElement('div');
+                contentDiv.className = 'content';
+                bubble.appendChild(contentDiv);
+                if (loading) addTypingIndicator(contentDiv);
+                else renderSafeMarkdown(contentDiv, content);
+            } else {
+                bubble.textContent = content;
+                row.append(bubble, avatar);
+            }
+
+            chatMessages.appendChild(row);
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+            return row;
+        }
+
+        function addInterruptCard(data) {
+            if (welcomeScreen.style.display !== 'none') welcomeScreen.style.display = 'none';
+            const row = document.createElement('div');
+            row.className = 'message-row ai';
+            const avatar = document.createElement('div');
+            avatar.className = 'avatar ai';
+            avatar.textContent = 'AI';
+            const card = document.createElement('div');
+            card.className = 'interrupt-card';
+            const header = document.createElement('div');
+            header.className = 'interrupt-header';
+            header.textContent = '⚠️ 需要人工确认高风险操作';
+            const body = document.createElement('div');
+            body.className = 'interrupt-body';
+            const proposal = data.tool_args && data.tool_args.proposal ? data.tool_args.proposal : {};
+            const referenceDraft = proposal.kind === 'reference_draft_review';
+            if (referenceDraft) header.textContent = '历史方案引用：需要本次医生审批';
+            card.dataset.proposalId = String(proposal.proposal_id || '');
+            card.dataset.proposalVersion = String(proposal.version || '');
+            card.dataset.payloadHash = String(proposal.payload_hash || '');
+            if (data.message) {
+                const message = document.createElement('p');
+                message.textContent = String(data.message);
+                body.appendChild(message);
+            }
+            const toolLabel = document.createElement('strong');
+            toolLabel.textContent = '调用工具：';
+            const toolValue = document.createTextNode(String(data.tool_name || 'unknown_tool'));
+            const argsLabel = document.createElement('strong');
+            argsLabel.textContent = '参数详情：';
+            const code = document.createElement('code');
+            try { code.textContent = JSON.stringify(data.tool_args || {}, null, 2); }
+            catch (error) { code.textContent = String(data.tool_args || {}); }
+            body.append(toolLabel, toolValue, document.createElement('br'), argsLabel, code);
+
+            const identity = document.createElement('div');
+            identity.className = 'interrupt-actions approval-identity';
+            const clinicianId = document.createElement('input');
+            clinicianId.className = 'reject-input clinician-id';
+            clinicianId.style.display = 'block';
+            clinicianId.placeholder = '医生身份 ID';
+            clinicianId.autocomplete = 'username';
+            const approvalToken = document.createElement('input');
+            approvalToken.className = 'reject-input approval-token';
+            approvalToken.style.display = 'block';
+            approvalToken.type = 'password';
+            approvalToken.placeholder = '审批令牌';
+            approvalToken.autocomplete = 'current-password';
+            identity.append(clinicianId, approvalToken);
+
+            const actions = document.createElement('div');
+            actions.className = 'interrupt-actions approval-actions';
+            const approveButton = document.createElement('button');
+            approveButton.className = 'btn btn-approve';
+            approveButton.textContent = referenceDraft ? '✅ 批准本次草案' : '✅ 批准执行';
+            approveButton.onclick = () => handleConfirm(true, approveButton);
+            const rejectButton = document.createElement('button');
+            rejectButton.className = 'btn btn-reject';
+            rejectButton.textContent = '❌ 拒绝';
+            rejectButton.onclick = () => showRejectInput(rejectButton);
+            const rejectInput = document.createElement('input');
+            rejectInput.className = 'reject-input';
+            rejectInput.placeholder = '请输入拒绝原因...';
+            rejectInput.onkeydown = event => {
+                if (event.key === 'Enter') handleConfirm(false, rejectInput);
+            };
+            const confirmRejectButton = document.createElement('button');
+            confirmRejectButton.className = 'btn btn-reject';
+            confirmRejectButton.style.display = 'none';
+            confirmRejectButton.textContent = '确认拒绝';
+            confirmRejectButton.onclick = () => handleConfirm(false, confirmRejectButton);
+            actions.append(approveButton, rejectButton, rejectInput, confirmRejectButton);
+            card.append(header, body, identity, actions);
+            row.append(avatar, card);
+            chatMessages.appendChild(row);
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+        }
+
+        function showRejectInput(btn) {
+            const actions = btn.closest('.interrupt-actions');
+            const input = actions.querySelector('.reject-input');
+            input.style.display = 'block';
+            input.focus();
+            btn.style.display = 'none';
+            actions.querySelectorAll('.btn-reject')[1].style.display = 'block';
+        }
+
+        async function handleConfirm(approved, btn) {
+            if (!activeCaseId || !activePatientId) return alert('当前问诊会话已失效，请重新开始。');
+            const card = btn.closest('.interrupt-card');
+            const actions = card.querySelector('.approval-actions');
+            const reason = actions.querySelector('.reject-input').value;
+            const clinicianId = card.querySelector('.clinician-id')?.value.trim() || '';
+            const approvalToken = card.querySelector('.approval-token')?.value || '';
+            if (!clinicianId || !approvalToken) return alert('请输入医生身份 ID 和审批令牌。');
+            if (!approved && !reason.trim()) return alert('拒绝检查申请时必须填写原因。');
+            if (!card.dataset.proposalId || !card.dataset.proposalVersion || !card.dataset.payloadHash) {
+                return alert('检查申请缺少版本绑定信息，无法审批。');
+            }
+            actions.querySelectorAll('button').forEach(button => button.disabled = true);
+            card.querySelectorAll('input').forEach(input => input.disabled = true);
+
+            const statusDiv = document.createElement('div');
+            statusDiv.style.marginTop = '12px';
+            statusDiv.style.fontWeight = '500';
+            statusDiv.style.color = approved ? 'var(--success-color)' : 'var(--danger-color)';
+            statusDiv.textContent = approved ? '✅ 已批准，正在执行...' : `❌ 已拒绝 (${reason || '无原因'})`;
+            card.appendChild(statusDiv);
+            awaitingConfirmation = false;
+            const submitResult = await connectSSE('/confirm_tool', {
+                patient_id: activePatientId,
+                case_id: activeCaseId,
+                proposal_id: card.dataset.proposalId,
+                proposal_version: Number(card.dataset.proposalVersion),
+                payload_hash: card.dataset.payloadHash,
+                approved,
+                reason
+            }, {
+                'Authorization': `Bearer ${approvalToken}`,
+                'X-Clinician-Id': clinicianId,
+                'X-Clinician-Role': 'clinician'
+            });
+            if (!submitResult.ok && submitResult.retryable) {
+                awaitingConfirmation = true;
+                actions.querySelectorAll('button').forEach(button => button.disabled = false);
+                card.querySelectorAll('input').forEach(input => input.disabled = false);
+                statusDiv.style.color = 'var(--danger-color)';
+                statusDiv.textContent = '❌ 审批提交失败，检查申请未执行，可核对信息后重试。';
+            } else if (!submitResult.ok) {
+                statusDiv.style.color = 'var(--danger-color)';
+                statusDiv.textContent = '❌ 审批已受理但执行结果未知；为防重复开单，请勿重复提交。';
+            } else {
+                statusDiv.textContent = '审批流程已完成，具体结果见下方。';
+            }
+        }
+
+        function parseClinicalContext() {
+            const raw = document.getElementById('clinical-context').value.trim();
+            if (!raw) return {};
+            const value = JSON.parse(raw);
+            if (!value || Array.isArray(value) || typeof value !== 'object') {
+                throw new Error('临床信息必须是 JSON 对象');
+            }
+            return value;
+        }
+
+        function sendMessage() {
+            const pid = document.getElementById('patient-id').value.trim();
+            const complaint = document.getElementById('chief-complaint').value.trim();
+            if (!pid || !complaint) return alert('请输入患者 ID 和主诉');
+            if (isGenerating) return;
+            if (awaitingConfirmation) return alert('请先处理当前人工确认请求。');
+
+            let clinicalContext;
+            try { clinicalContext = parseClinicalContext(); }
+            catch (error) { return alert(`结构化临床信息格式错误：${error.message}`); }
+
+            activeCaseId = createCaseId();
+            activePatientId = pid;
+            headerPatientInfo.textContent = `患者: ${pid} · Case: ${activeCaseId.slice(0, 8)}`;
+            headerPatientInfo.style.display = 'inline-block';
+            addMessage('user', `${pid}: ${complaint}`);
+            document.getElementById('chief-complaint').value = '';
+            connectSSE('/medical_chat', {
+                patient_id: pid,
+                case_id: activeCaseId,
+                chief_complaint: complaint,
+                clinical_context: clinicalContext
+            });
+        }
+
+        function showError(contentDiv, message) {
+            contentDiv.replaceChildren();
+            const error = document.createElement('span');
+            error.style.color = 'var(--danger-color)';
+            error.textContent = message;
+            contentDiv.appendChild(error);
+        }
+
+        function appendStatus(contentDiv, message) {
+            contentDiv.querySelector('.typing-indicator')?.remove();
+            let list = contentDiv.querySelector('.status-list');
+            if (!list) {
+                list = document.createElement('div');
+                list.className = 'status-list';
+                contentDiv.appendChild(list);
+            }
+            const item = document.createElement('div');
+            item.className = 'status-item';
+            item.textContent = message;
+            list.appendChild(item);
+        }
+
+        async function connectSSE(url, payload, extraHeaders = {}) {
+            isGenerating = true;
+            sendBtn.disabled = true;
+            const aiRow = addMessage('ai', '', payload.chief_complaint ? '安全分流' : '恢复临床流程', true);
+            const contentDiv = aiRow.querySelector('.content');
+            const nodeTag = aiRow.querySelector('.node-tag');
+            let currentText = '';
+            let interrupted = false;
+            let streamError = false;
+            let responseAccepted = false;
+            let completed = false;
+            let feedbackContext = null;
+
+            if (currentController) currentController.abort();
+            const controller = new AbortController();
+            currentController = controller;
+
+            try {
+                const response = await fetch(url, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', ...extraHeaders },
+                    body: JSON.stringify(payload),
+                    signal: controller.signal
+                });
+                if (!response.ok) {
+                    let detail = `HTTP ${response.status}`;
+                    try {
+                        const errorPayload = await response.json();
+                        detail = errorPayload.detail || detail;
+                    } catch (error) { /* non-JSON error response */ }
+                    throw new Error(detail);
+                }
+                responseAccepted = true;
+                if (!response.body) throw new Error('浏览器未提供流式响应体');
+
+                const reader = response.body.getReader();
+                const decoder = new TextDecoder();
+                let buffer = '';
+                while (true) {
+                    const { done, value } = await reader.read();
+                    if (done) break;
+                    buffer += decoder.decode(value, { stream: true });
+                    const events = buffer.split(/\r?\n\r?\n/);
+                    buffer = events.pop() || '';
+
+                    for (const eventBlock of events) {
+                        const dataLine = eventBlock.split(/\r?\n/).find(line => line.startsWith('data:'));
+                        if (!dataLine) continue;
+                        const dataString = dataLine.slice(5).trimStart();
+                        if (dataString === '[DONE]') { completed = true; continue; }
+
+                        let data;
+                        try { data = JSON.parse(dataString); }
+                        catch (error) {
+                            console.error('SSE JSON parse error:', error, dataString);
+                            continue;
+                        }
+
+                        if (data.type === 'session' && data.case_id) {
+                            activeCaseId = data.case_id;
+                        } else if (data.type === 'status') {
+                            if (nodeTag && data.node) nodeTag.textContent = `📍 ${data.node}`;
+                            appendStatus(contentDiv, data.message || `${data.node} 已完成`);
+                            chatMessages.scrollTop = chatMessages.scrollHeight;
+                        } else if (data.type === 'message' && data.content) {
+                            if (data.feedback) feedbackContext = data.feedback;
+                            if (nodeTag && data.node) nodeTag.textContent = `📍 ${data.node}`;
+                            currentText += `${currentText ? '\n' : ''}${data.content}`;
+                            renderSafeMarkdown(contentDiv, currentText);
+                            chatMessages.scrollTop = chatMessages.scrollHeight;
+                        } else if (data.type === 'interrupt') {
+                            interrupted = true;
+                            awaitingConfirmation = true;
+                            if (!currentText) aiRow.remove();
+                            addInterruptCard(data.data || {});
+                            return { ok: true, retryable: false };
+                        } else if (data.type === 'error') {
+                            streamError = true;
+                            showError(contentDiv, `系统错误：${data.message || '未知错误'}`);
+                        }
+                    }
+                }
+                if (!completed) throw new Error('响应未完整结束，请勿视为已完成。');
+            } catch (error) {
+                streamError = true;
+                if (error.name !== 'AbortError') {
+                    streamError = true;
+                    showError(contentDiv, `连接中断或发生错误：${error.message}`);
+                }
+            } finally {
+                if (currentController === controller) currentController = null;
+                isGenerating = false;
+                sendBtn.disabled = awaitingConfirmation;
+                if (currentText && !streamError) renderSafeMarkdown(contentDiv, currentText);
+                if (!streamError && (completed || interrupted) && feedbackContext) {
+                    addAnswerFeedback(aiRow, feedbackContext);
+                }
+                if (!currentText && !interrupted && !streamError && !contentDiv.querySelector('.status-list')) {
+                    showError(contentDiv, '流程结束，但没有返回可显示的报告。');
+                }
+            }
+            return { ok: !streamError, retryable: !responseAccepted };
+        }
+    </script>
+</body>
+</html>
