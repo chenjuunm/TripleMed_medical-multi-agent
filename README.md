@@ -8,6 +8,8 @@
 
 项目使用模拟患者记录、演示医学资料和演示检查申请工具，用于研究 Agent 编排与人机协作流程，不是经过临床验证的诊疗产品。
 
+本仓库公开用于个人项目展示与技术交流，未授予代码复制、修改、再发布或商业使用许可。
+
 ### 整体设计
 
 核心思路是将“获取事实”“形成判断”“审校判断”和“执行操作”分开：只读工具负责提供证据，模型输出受结构约束，可能产生操作的检查申请通过独立审批节点执行。
@@ -140,6 +142,8 @@ python -m unittest discover -s tests -v
 TripleMed is a multi-agent clinical decision-support prototype built with **LangGraph, LangChain, and FastAPI**. It organizes case intake, task planning, parallel evidence collection, report generation, independent review, and clinician approval into a traceable state graph with bounded resource use. A browser interface displays workflow progress and results.
 
 The project uses mock patient records, demonstration medical materials, and a simulated examination-order tool. It is intended for exploring agent orchestration and human collaboration and has not been clinically validated.
+
+This repository is publicly available for portfolio review and technical discussion; no permission is granted to copy, modify, redistribute, or commercially use the code.
 
 ### Overall design
 
