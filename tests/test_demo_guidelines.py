@@ -1,4 +1,7 @@
-"""Offline tests: no embedding downloads or writes to the real vector DB."""
+"""Offline tests using fictional medical fixtures and no real personal data.
+
+The tests do not download embeddings or write to the real vector database.
+"""
 import unittest
 from unittest.mock import Mock
 
@@ -15,13 +18,18 @@ class DemoGuidelineTests(unittest.TestCase):
             self.assertIs(document.metadata["is_demo"], True)
             self.assertTrue(document.metadata["source"])
             self.assertTrue(document.metadata["version"])
-        for document in mock_guidelines[3:]:
-            self.assertIn("仅用于软件检索测试", document.page_content)
             self.assertEqual(document.metadata["data_kind"], "synthetic_retrieval_fixture")
+            self.assertIn("仅用于软件检索测试", document.page_content)
+        corpus = "\n".join(document.page_content for document in mock_guidelines)
+        for prohibited in ("硝普钠", "乌拉地尔", "二甲双胍", "SGLT2", "GLP-1", "20-25%"):
+            self.assertNotIn(prohibited, corpus)
 
     def test_old_uuid_collection_only_gets_missing_documents(self):
         store = Mock()
-        store.get.return_value = {"metadatas": [doc.metadata for doc in mock_guidelines[:3]]}
+        store.get.return_value = {
+            "ids": ["legacy-1", "legacy-2", "legacy-3"],
+            "metadatas": [doc.metadata for doc in mock_guidelines[:3]],
+        }
         self.assertEqual(_add_missing_demo_documents(store), 12)
         store.get.assert_called_once_with(where={"is_demo": True}, include=["metadatas"])
         call = store.add_documents.call_args.kwargs
@@ -31,18 +39,37 @@ class DemoGuidelineTests(unittest.TestCase):
 
     def test_complete_collection_does_not_duplicate_documents(self):
         store = Mock()
-        store.get.return_value = {"metadatas": [doc.metadata for doc in mock_guidelines]}
+        store.get.return_value = {
+            "ids": [f"bundled-demo:{doc.metadata['source_id']}" for doc in mock_guidelines],
+            "metadatas": [doc.metadata for doc in mock_guidelines],
+        }
         self.assertEqual(_add_missing_demo_documents(store), 0)
         store.add_documents.assert_not_called()
 
+    def test_stale_bundled_demo_is_replaced_without_deleting_other_documents(self):
+        store = Mock()
+        store.get.return_value = {
+            "ids": ["legacy-demo", "custom-demo"],
+            "metadatas": [
+                {"source_id": "DEMO-CV-001", "version": "demo", "is_demo": True},
+                {"source_id": "CUSTOM-DEMO", "version": "local", "is_demo": True},
+            ],
+        }
+        self.assertEqual(_add_missing_demo_documents(store), 15)
+        store.delete.assert_called_once_with(ids=["legacy-demo"])
+        self.assertNotIn("custom-demo", store.delete.call_args.kwargs["ids"])
+
     def test_empty_collection_gets_all_demos(self):
         store = Mock()
-        store.get.return_value = {"metadatas": []}
+        store.get.return_value = {"ids": [], "metadatas": []}
         self.assertEqual(_add_missing_demo_documents(store), 15)
 
     def test_unrelated_metadata_does_not_prevent_additions(self):
         store = Mock()
-        store.get.return_value = {"metadatas": [None, {}, {"source_id": "CUSTOM-DEMO"}]}
+        store.get.return_value = {
+            "ids": ["none", "empty", "custom"],
+            "metadatas": [None, {}, {"source_id": "CUSTOM-DEMO"}],
+        }
         self.assertEqual(_add_missing_demo_documents(store), 15)
         store.delete.assert_not_called()
 

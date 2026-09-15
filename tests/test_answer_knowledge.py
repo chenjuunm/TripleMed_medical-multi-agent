@@ -1,3 +1,9 @@
+"""Tests use fictional cases, identities, contacts, and credentials only.
+
+Values that resemble personal or medical data are synthetic test fixtures and
+do not represent real people or records.
+"""
+
 import asyncio
 import copy
 import hashlib

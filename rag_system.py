@@ -18,18 +18,44 @@ from config import EMBEDDING_DEVICE, EMBEDDING_MODEL, VECTOR_DB_PATH
 
 logger = logging.getLogger(__name__)
 
-# 模拟医学指南数据
+# All bundled records are fictional retrieval fixtures written for this demo.
+# They are not excerpts from clinical guidelines and must not be used as
+# diagnosis, treatment, medication, dosage, or emergency-care instructions.
+DEMO_NOTICE = "【合成医学资料，仅用于软件检索测试，不构成临床建议】"
+
 mock_guidelines = [
-    Document(page_content="胸痛鉴别诊断：需排除急性心肌梗死、主动脉夹层、肺栓塞。首选心电图和肌钙蛋白检测。",
-             metadata={"source": "演示急诊指南", "source_id": "DEMO-ED-001", "version": "demo", "is_demo": True}),
-    Document(page_content="高血压危象处理：若收缩压>180mmHg，需静脉泵入硝普钠或乌拉地尔，目标是在1小时内降压20-25%。",
-             metadata={"source": "演示心血管指南", "source_id": "DEMO-CV-001", "version": "demo", "is_demo": True}),
-    Document(page_content="2型糖尿病用药：首选二甲双胍。若HbA1c>7.0%，考虑联合SGLT2抑制剂或GLP-1受体激动剂。",
-             metadata={"source": "演示内分泌指南", "source_id": "DEMO-EN-001", "version": "demo", "is_demo": True})
+    Document(
+        page_content=(
+            f"{DEMO_NOTICE}胸痛评估。检索练习要点：起病方式、持续时间、"
+            "伴随症状、生命体征、既往病史与已有检查。系统应识别需要及时人工评估的"
+            "高风险表现，不得把检索命中直接转换为诊断或治疗方案。"
+        ),
+        metadata={"source": "合成演示资料：胸痛评估", "source_id": "DEMO-ED-001",
+                  "version": "demo-2026-09-15", "is_demo": True,
+                  "data_kind": "synthetic_retrieval_fixture"},
+    ),
+    Document(
+        page_content=(
+            f"{DEMO_NOTICE}血压异常评估。检索练习要点：重复测量条件、症状、"
+            "生命体征趋势、既往诊断、现用药物和已获得的检查结果。不得根据单一数值"
+            "自动生成药物、剂量或处置目标。"
+        ),
+        metadata={"source": "合成演示资料：血压异常评估", "source_id": "DEMO-CV-001",
+                  "version": "demo-2026-09-15", "is_demo": True,
+                  "data_kind": "synthetic_retrieval_fixture"},
+    ),
+    Document(
+        page_content=(
+            f"{DEMO_NOTICE}血糖异常与相关症状。检索练习要点：症状、测量时间与单位、"
+            "既往诊断、现用药物、过敏史和已完成的检验。演示记录不提供诊断阈值、"
+            "用药选择或剂量建议。"
+        ),
+        metadata={"source": "合成演示资料：血糖异常评估", "source_id": "DEMO-EN-001",
+                  "version": "demo-2026-09-15", "is_demo": True,
+                  "data_kind": "synthetic_retrieval_fixture"},
+    ),
 ]
 
-# Synthetic retrieval fixtures, not excerpts from real guidelines. Deliberately
-# avoid drug doses, treatment thresholds and claims of clinical authority.
 _additional_demo_scenarios = [
     ("DEMO-ENT-001", "咽痛与上呼吸道症状",
      "模拟主诉：咽痛、喉咙痛、鼻塞、流涕。检索练习要点：症状持续时间、是否发热、吞咽情况、接触史、既往用药与过敏史。不要将未提供的信息补写为阴性，也不要由主题命中直接生成抗菌药方案。"),
@@ -58,7 +84,7 @@ _additional_demo_scenarios = [
 ]
 mock_guidelines.extend(
     Document(
-        page_content=f"【模拟医学资料，仅用于软件检索测试，不构成临床建议】{title}。{content}",
+        page_content=f"{DEMO_NOTICE}{title}。{content}",
         metadata={"source": f"演示场景资料：{title}", "source_id": source_id,
                   "version": "demo-2026-09-07", "is_demo": True,
                   "topic": title, "data_kind": "synthetic_retrieval_fixture"},
@@ -91,14 +117,27 @@ def _tokenize_for_bm25(text: str):
 
 
 def _add_missing_demo_documents(vectorstore):
-    """Add missing bundled demos without deleting or replacing user documents.
+    """Add current demos and replace only stale bundled demo source IDs.
 
     Older collections used generated UUIDs, so compare metadata source_id rather
-    than assuming those records already have our new deterministic IDs.
+    than assuming those records already have our deterministic IDs. Documents
+    outside the bundled source-ID set are never removed or replaced.
     """
     existing = vectorstore.get(where={"is_demo": True}, include=["metadatas"])
-    source_ids = {metadata.get("source_id") for metadata in existing.get("metadatas", [])
-                  if isinstance(metadata, dict)}
+    current = {document.metadata["source_id"]: document for document in mock_guidelines}
+    stale_ids = []
+    source_ids = set()
+    for item_id, metadata in zip(existing.get("ids", []), existing.get("metadatas", [])):
+        if not isinstance(metadata, dict):
+            continue
+        source_id = metadata.get("source_id")
+        expected = current.get(source_id)
+        if expected and metadata.get("version") != expected.metadata.get("version"):
+            stale_ids.append(item_id)
+        elif source_id:
+            source_ids.add(source_id)
+    if stale_ids:
+        vectorstore.delete(ids=stale_ids)
     missing = [document for document in mock_guidelines
                if document.metadata["source_id"] not in source_ids]
     if missing:

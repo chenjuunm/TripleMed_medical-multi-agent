@@ -36,12 +36,9 @@ answer_knowledge_db/
 *.[mM][dD]
 !README.md
 
-# Personal documents and export artifacts
+# Local export artifacts
 *.pdf
 *.docx
 *.doc
 *.xlsx
 *.zip
-*RESUME*
-*resume*
-*简历*

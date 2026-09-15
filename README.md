@@ -57,7 +57,7 @@ flowchart TD
 
 RAG 结合 BM25 稀疏检索与 Chroma 向量检索，默认融合权重为 0.4 / 0.6，嵌入模型为 `BAAI/bge-base-zh-v1.5`。BM25 当前索引内置演示文本，向量检索读取本地集合；两者的语料范围可能不同。检索器延迟初始化，首次运行可能下载嵌入模型。
 
-工具返回结构化事实、来源标识、时间和演示数据标签。报告保留证据引用，确定性校验与模型审校共同检查引用关系。内置资料是软件演示数据，不代表真实指南数据库。
+工具返回结构化事实、来源标识、时间和演示数据标签。报告保留证据引用，确定性校验与模型审校共同检查引用关系。所有内置医学资料均为专门编写的合成软件测试材料，不摘录真实指南，不提供诊断阈值、药物选择或剂量建议，也不得用于临床决策。
 
 #### 医生审批与工具执行
 
@@ -192,7 +192,7 @@ The patient-data and evidence branches execute tools selected in the plan; the s
 
 Hybrid RAG combines BM25 sparse retrieval with Chroma vector retrieval, using default weights of 0.4 and 0.6 and the `BAAI/bge-base-zh-v1.5` embedding model. BM25 indexes the bundled demonstration texts, while vector retrieval uses the local collection, so their corpus coverage can differ. Initialization is lazy and may download the embedding model on first use.
 
-Tools return structured facts, source identifiers, timestamps, and demonstration-data labels. Reports retain evidence references, checked by deterministic validation and model review. Bundled materials are software demonstrations rather than an authoritative clinical guideline database.
+Tools return structured facts, source identifiers, timestamps, and demonstration-data labels. Reports retain evidence references, checked by deterministic validation and model review. All bundled medical materials are purpose-written synthetic software fixtures rather than excerpts from real guidelines. They provide no diagnostic thresholds, medication selection, or dosage advice and must not be used for clinical decisions.
 
 #### Clinician approval and execution
 
