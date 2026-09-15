@@ -335,7 +335,10 @@ async def medical_chat(request: ChatRequest):
 
         except Exception as e:
             logger.error(f"对话流处理出错: {e}", exc_info=True)
-            error_data = {"type": "error", "message": str(e)}
+            error_data = {
+                "type": "error",
+                "message": "对话处理失败，请稍后重试。",
+            }
             yield f"data: {json.dumps(error_data, ensure_ascii=False)}\n\n"
 
     return StreamingResponse(
